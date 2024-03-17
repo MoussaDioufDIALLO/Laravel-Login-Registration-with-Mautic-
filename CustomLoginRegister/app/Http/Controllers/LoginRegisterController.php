@@ -85,7 +85,7 @@ class LoginRegisterController extends Controller
 
         // Si le jeton de rafraîchissement n'est pas présent dans la session, utilisez la valeur codée en dur
         if (!$refreshToken) {
-            $refreshToken = 'MTFiODM1NGRjZWQ0YWUzYzU1OTBlZWU1ZTUzNDc0MWUxNTg4MWJjNWNlOWE1OGFiMWJmNmFmNDYyOTZlOTllMg';
+            $refreshToken = 'ZGNhZWYwZDViOWYzZjVmOTE4OTMyMDI3ZDBiZDE1MzUwZGQ2MGUwN2VlM2I1ZTVmZGE2ZWRkYTI0YmQyZmJhMA';
         }
 
         // Utilisez le jeton de rafraîchissement pour obtenir un nouveau jeton d'accès
