@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log; 
 
 
 class LoginRegisterController extends Controller
@@ -22,93 +23,73 @@ class LoginRegisterController extends Controller
     {
         return view('auth.register');
     }
-    public function store(Request $request)
-    {
-        // Validation des données du formulaire
-        $request->validate([
-            'name' => 'required|string|max:250',
-            'email' => 'required|email|max:250|unique:users',
-            'password' => 'required|min:8|confirmed'
-        ]);
+   // App\Http\Controllers\LoginRegisterController
+   public function store(Request $request)
+   {
+       // Validation des données du formulaire
+       $request->validate([
+           'name' => 'required|string|max:250',
+           'email' => 'required|email|max:250|unique:users',
+           'password' => 'required|min:8|confirmed'
+       ]);
+   
+       // Création de l'utilisateur dans Laravel
+       $user = User::create([
+           'name' => $request->name,
+           'email' => $request->email,
+           'password' => Hash::make($request->password)
+       ]);
+   
+       // Obtention du jeton d'accès Mautic
+       $accessToken = $this->getMauticAccessToken($request);
+       Log::info('On obtient ce token ' . $accessToken);
+   
+       // Création du contact dans Mautic
+       $response = $this->createMauticContact(
+           $request->name,
+           $request->email,
+           $accessToken,
+           env('MAUTIC_BASE_URL')
+       );
+   
+       if ($response && $response->successful()) {
+           // Redirection vers le tableau de bord avec un message de succès
+           return redirect()->route('dashboard')->withSuccess('You have successfully registered and logged in!');
+       } else {
+           // En cas d'échec, supprimez l'utilisateur créé précédemment dans Laravel
+           $user->delete();
+           // Redirection vers la page d'inscription avec un message d'erreur
+           return back()->withErrors(['registration_error' => 'An error occurred during registration. Please try again.']);
+       }
+   }
+   
+   // Méthode pour récupérer le jeton d'accès Mautic
+   private function getMauticAccessToken(Request $request)
+   {
+       $response = Http::asForm()->post(env('MAUTIC_BASE_URL') . '/oauth/v2/token', [
+           'grant_type' => 'client_credentials',
+           'client_id' => env('MAUTIC_CLIENT_ID'),
+           'client_secret' => env('MAUTIC_CLIENT_SECRET'),
+           'redirect_uri' => env('MAUTIC_REDIRECT_URI')
+       ]);
+   
+       if ($response->successful()) {
+           return $response->json()['access_token'];
+       } else {
+           return null;
+       }
+   }
+   
+   // Méthode pour créer un contact dans Mautic
+   private function createMauticContact($name, $email, $accessToken, $mauticApiUrl)
+   {
+       $response = Http::withToken($accessToken)->post($mauticApiUrl . '/api/contacts/new', [
+           'firstname' => $name,
+           'email' => $email
+       ]);
+       return $response;
+   }
 
-        // Création de l'utilisateur dans Laravel
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password)
-        ]);
-
-        // Création du contact dans Mautic
-        $response = $this->createMauticContact($request->name, $request->email, $request);
-
-        if ($response && $response->successful()) {
-            // Redirection vers le tableau de bord avec un message de succès
-            return redirect()->route('dashboard')->withSuccess('You have successfully registered and logged in!');
-        } else {
-            // En cas d'échec, supprimez l'utilisateur créé précédemment dans Laravel
-            $user->delete();
-            // Redirection vers la page d'inscription avec un message d'erreur
-            return back()->withErrors(['registration_error' => 'An error occurred during registration. Please try again.']);
-        }
-    }
-
-    //Mautic Function
-    public function createMauticContact($name, $email, Request $request)
-    {
-        //Obtenir le jeton d'accès Mautic
-        $accessToken = $this->getMauticAccessToken($request);
-
-        if ($accessToken) {
-            //Créer le contact dans Mautic
-            $response = Http::withToken($accessToken)->post('http://localhost:8003/api/contacts/new', [
-                'firstname' => $name,
-                'email' => $email
-            ]);
-
-            if ($response->successful()) {
-                return $response;
-            } else {
-                //Gérer l'erreur si la création du contact échoue
-                return null;
-            }
-        } else {
-            //Gérer l'erreur si la récupération du jeton d'accès échoue
-            return null;
-        }
-    }
-
-    //Méthode pour récupérer le jeton d'accès Mautic
-    private function getMauticAccessToken(Request $request)
-    {
-        // Récupérez le jeton de rafraîchissement depuis la session
-        $refreshToken = $request->session()->get('mautic_refresh_token');
-    
-        // Si le jeton de rafraîchissement n'est pas présent dans la session, utilisez la valeur codée en dur
-        if (!$refreshToken) {
-            $refreshToken = env('MAUTIC_REFRESH_TOKEN');
-        }
-    
-        // Utilisez le jeton de rafraîchissement pour obtenir un nouveau jeton d'accès
-        $response = Http::asForm()->post('http://localhost:8003/oauth/v2/token', [
-            'grant_type' => 'refresh_token',
-            'refresh_token' => $refreshToken,
-            'client_id' => env('MAUTIC_CLIENT_ID'),
-            'client_secret' => env('MAUTIC_CLIENT_SECRET'),
-        ]);
-    
-        if ($response->successful()) {
-            $data = $response->json();
-            $accessToken = $data['access_token'];
-    
-            // Stockez le nouveau jeton de rafraîchissement dans la session
-            $request->session()->put('mautic_refresh_token', $data['refresh_token']);
-    
-            return $accessToken;
-        } else {
-            // Gérer l'erreur si la récupération du jeton d'accès échoue
-            return null;
-        }
-    }
     public function login()
     {
         return view('auth.login');
