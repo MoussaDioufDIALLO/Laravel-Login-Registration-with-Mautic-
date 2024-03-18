@@ -82,35 +82,33 @@ class LoginRegisterController extends Controller
     {
         // Récupérez le jeton de rafraîchissement depuis la session
         $refreshToken = $request->session()->get('mautic_refresh_token');
-
+    
         // Si le jeton de rafraîchissement n'est pas présent dans la session, utilisez la valeur codée en dur
         if (!$refreshToken) {
-            $refreshToken = 'ZGNhZWYwZDViOWYzZjVmOTE4OTMyMDI3ZDBiZDE1MzUwZGQ2MGUwN2VlM2I1ZTVmZGE2ZWRkYTI0YmQyZmJhMA';
+            $refreshToken = env('MAUTIC_REFRESH_TOKEN');
         }
-
+    
         // Utilisez le jeton de rafraîchissement pour obtenir un nouveau jeton d'accès
         $response = Http::asForm()->post('http://localhost:8003/oauth/v2/token', [
             'grant_type' => 'refresh_token',
             'refresh_token' => $refreshToken,
-            'client_id' => '2_5w7tbxbb2d4w4wwkog0gkw8c8w0so48ooko4gskkos440kocok',
-            'client_secret' => '4ywmg1663b40kgksgsgcs08k8ok8kwwcg44kgs4sowssww4s84',
+            'client_id' => env('MAUTIC_CLIENT_ID'),
+            'client_secret' => env('MAUTIC_CLIENT_SECRET'),
         ]);
-
+    
         if ($response->successful()) {
             $data = $response->json();
             $accessToken = $data['access_token'];
-
+    
             // Stockez le nouveau jeton de rafraîchissement dans la session
             $request->session()->put('mautic_refresh_token', $data['refresh_token']);
-
+    
             return $accessToken;
         } else {
             // Gérer l'erreur si la récupération du jeton d'accès échoue
             return null;
         }
     }
-
-
     public function login()
     {
         return view('auth.login');
